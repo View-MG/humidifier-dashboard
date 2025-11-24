@@ -9,7 +9,9 @@ interface SensorInfoProps {
 
 export default function SensorInfo({ data }: SensorInfoProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    // VVVV แก้ไขคลาส: ใช้ grid grid-cols-1 เพื่อเรียงเป็นคอลัมน์เดียวเสมอ VVVV
+    <div className="grid grid-cols-1 gap-4"> 
+        
       <SensorCard
         title="Temperature"
         value={data.temp ?? "--"}
