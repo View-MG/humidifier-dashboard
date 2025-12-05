@@ -40,11 +40,6 @@ export default function SensorInfo({ data }: SensorInfoProps) {
         unit="°"
       />
 
-      <SensorCard
-        title="Button Status"
-        value={data.button ? "Pressed" : "Released"}
-        icon={<ToggleRight className="w-7 h-7 text-blue-600" />}
-      />
     </div>
   );
 }

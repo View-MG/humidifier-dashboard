@@ -2,7 +2,8 @@ export type ModeType = "manual" | "auto" | "off";
 
 export interface ManualPayload {
   type: "manual";
-  manual_state: boolean;
+  fan_state: boolean;
+  steam_state: boolean
 }
 
 export interface ModePayload {
