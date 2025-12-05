@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Power, Clock, Save, Zap, RefreshCw, Droplets, Fan } from "lucide-react";
+import { Clock, RefreshCw, Droplets, Fan } from "lucide-react";
 import type {
   ControlPayload,
   ManualPayload,
-  ModePayload,
   SchedulePayload,
   ApiResponse,
   ModeType
@@ -30,33 +29,30 @@ export default function ControlPage() {
   const [stopMin, setStopMin] = useState("00");
   const [isScheduleEnabled, setIsScheduleEnabled] = useState(false);
 
-  // ✅ Helper: แปลง Unix Timestamp (Seconds) เป็น Hour/Minute
+  // Helper: แปลง Unix Timestamp เป็น Hour/Minute
   const unixToTime = (timestampStr: string) => {
     if (!timestampStr || timestampStr === "0") return null;
-    
-    // API เราเก็บเป็น seconds แต่ JS Date ใช้ milliseconds
     const date = new Date(parseInt(timestampStr) * 1000);
     const hh = date.getHours().toString().padStart(2, "0");
     const mm = date.getMinutes().toString().padStart(2, "0");
     return { hh, mm };
   };
 
-  // ✅ 1. เพิ่ม useEffect เพื่อดึงข้อมูลเริ่มต้นจาก API (GET)
+  // 1. ดึงข้อมูลเริ่มต้นจาก API
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/control"); // เรียก GET Method
+        const res = await fetch("/api/control");
         const json = await res.json();
         
         if (json.ok && json.data) {
-          const { isFanOn, isSteamOn, mode, sched_start, sched_end, target_humidity } = json.data;
+          const { isFanOn, isSteamOn, mode, sched_start, sched_end, target_humidity, schedule_enabled } = json.data;
 
           const autoEnabled = mode === "auto";
           setIsAutoMode(autoEnabled);
           setTargetHumid(target_humidity.toString());
 
-          // ✅ แก้ไข: ถ้า Auto Mode เปิดอยู่ ให้บังคับ Fan และ Steam เป็น ON
-          // ถ้า Auto ปิดอยู่ ให้ใช้ค่าจริงจาก Database (isFanOn/isSteamOn)
+          // ถ้า Auto เปิดอยู่ ให้โชว์ว่า Fan/Steam เปิดอยู่
           if (autoEnabled) {
             setIsFanOn(true);
             setIsSteamOn(true);
@@ -65,22 +61,25 @@ export default function ControlPage() {
             setIsSteamOn(isSteamOn);
           }
 
-          // Update Schedule
-          if (sched_start !== "0" && sched_end !== "0") {
-             setIsScheduleEnabled(true);
-             const start = unixToTime(sched_start);
-             const end = unixToTime(sched_end);
-             
-             if (start) {
-               setStartHour(start.hh);
-               setStartMin(start.mm);
-             }
-             if (end) {
-               setStopHour(end.hh);
-               setStopMin(end.mm);
-             }
+          // จัดการ Schedule State
+          if (typeof schedule_enabled === "boolean") {
+            setIsScheduleEnabled(schedule_enabled);
           } else {
-            setIsScheduleEnabled(false);
+            // Fallback
+            setIsScheduleEnabled(sched_start !== "0" && sched_end !== "0");
+          }
+          
+          // Set Time values
+          const start = unixToTime(sched_start);
+          const end = unixToTime(sched_end);
+             
+          if (start) {
+             setStartHour(start.hh);
+             setStartMin(start.mm);
+          }
+          if (end) {
+             setStopHour(end.hh);
+             setStopMin(end.mm);
           }
         }
       } catch (error) {
@@ -102,7 +101,6 @@ export default function ControlPage() {
     return Math.floor(d.getTime() / 1000);
   };
 
-  // API caller
   const callApi = useCallback(async (payload: ControlPayload) => {
     setLoading(true);
     setApiMessage("");
@@ -129,54 +127,28 @@ export default function ControlPage() {
   }, []);
 
   // ------------------------------
-  // Manual Fan Toggle
+  // Actions
   // ------------------------------
   const handleFanToggle = () => {
     const newState = !isFanOn;
-
-    const payload: ManualPayload = {
-      type: "manual",
-      fan_state: newState,
-      steam_state: isSteamOn
-    };
-
+    const payload: ManualPayload = { type: "manual", fan_state: newState, steam_state: isSteamOn };
     callApi(payload);
     setIsFanOn(newState);
     setIsAutoMode(false);
   };
 
-  // ------------------------------
-  // Manual Steam Toggle
-  // ------------------------------
   const handleSteamToggle = () => {
     const newState = !isSteamOn;
-
-    const payload: ManualPayload = {
-      type: "manual",
-      fan_state: isFanOn,
-      steam_state: newState
-    };
-
+    const payload: ManualPayload = { type: "manual", fan_state: isFanOn, steam_state: newState };
     callApi(payload);
     setIsSteamOn(newState);
     setIsAutoMode(false);
   };
 
-  // ------------------------------
-  // Auto Mode Toggle
-  // ------------------------------
   const handleAutoToggle = () => {
     const newMode = isAutoMode ? "off" : "auto";
-
-    // ส่งค่า target_humidity ไปด้วย
-    const payload: any = {
-      type: "mode",
-      mode: newMode as ModeType,
-      target_humidity: parseInt(targetHumid) || 0
-    };
-
+    const payload: any = { type: "mode", mode: newMode as ModeType, target_humidity: parseInt(targetHumid) || 0 };
     callApi(payload);
-
     setIsAutoMode(!isAutoMode);
 
     if (newMode === "auto") {
@@ -188,22 +160,25 @@ export default function ControlPage() {
     }
   };
 
-  // ------------------------------
-  // Save Schedule
-  // ------------------------------
-  const handleSaveSchedule = () => {
-    if (!isScheduleEnabled) {
-      const payload: SchedulePayload = {
-        type: "schedule",
-        enabled: false,
-      };
-      callApi(payload);
-      return;
-    }
+  // เมื่อกด Toggle Switch (เปิด/ปิด การตั้งเวลา)
+  const handleToggleSchedule = () => {
+    const nextState = !isScheduleEnabled;
+    setIsScheduleEnabled(nextState);
 
     const payload: SchedulePayload = {
+        type: "schedule",
+        enabled: nextState,
+        sched_start: convertToUnix(startHour, startMin).toString(),
+        sched_end: convertToUnix(stopHour, stopMin).toString(),
+    };
+    callApi(payload);
+  };
+
+  // เมื่อกดปุ่มบันทึกเวลา
+  const handleSaveSchedule = () => {
+    const payload: SchedulePayload = {
       type: "schedule",
-      enabled: true,
+      enabled: isScheduleEnabled, 
       sched_start: convertToUnix(startHour, startMin).toString(),
       sched_end: convertToUnix(stopHour, stopMin).toString(),
     };
@@ -224,10 +199,7 @@ export default function ControlPage() {
       {/* Manual section */}
       <div className="bg-white p-4 rounded-xl shadow mb-4">
         <h2 className="font-semibold mb-2 text-black">Manual Control</h2>
-        
         <div className="grid grid-cols-2 gap-3">
-          
-          {/* ปุ่ม Fan */}
           <button
             disabled={loading || isAutoMode}
             onClick={handleFanToggle}
@@ -239,7 +211,6 @@ export default function ControlPage() {
             <span>{isFanOn ? "เปิดอยู่ (Fan)" : "ปิดพัดลม"}</span>
           </button>
 
-          {/* ปุ่ม Steam */}
           <button
             disabled={loading || isAutoMode}
             onClick={handleSteamToggle}
@@ -250,15 +221,12 @@ export default function ControlPage() {
             <Droplets className={`w-6 h-6 mb-2 ${isSteamOn ? "text-white" : "text-blue-500"}`} />
             <span>{isSteamOn ? "เปิดอยู่ (Steam)" : "ปิดสตรีม"}</span>
           </button>
-
         </div>
       </div>
 
       {/* Auto */}
       <div className="bg-white p-4 rounded-xl shadow mb-4">
         <h2 className="font-semibold mb-3 text-black">Auto Mode</h2>
-
-        {/* ช่องใส่ความชื้น (%) */}
         <div className="mb-4">
           <label className="block text-black mb-2 text-sm font-medium">
             ความชื้นที่ต้องการ (%) 
@@ -301,10 +269,9 @@ export default function ControlPage() {
 
         <div 
           className="flex justify-end items-center mb-4 cursor-pointer gap-3" 
-          onClick={() => setIsScheduleEnabled(!isScheduleEnabled)}
+          onClick={handleToggleSchedule}
         >
           <span className="text-black font-medium select-none">เปิดการตั้งเวลา</span>
-
           <div className={`relative w-12 h-7 rounded-full transition-colors duration-200 ease-in-out ${
             isScheduleEnabled ? "bg-green-500" : "bg-gray-300"
           }`}>
@@ -340,16 +307,18 @@ export default function ControlPage() {
               </select>
             </div>
           </div>
-
-          <button
-            disabled={loading || !isScheduleEnabled}
-            onClick={handleSaveSchedule}
-            className="w-full bg-green-600 text-white py-3 rounded-xl mt-2 flex justify-center items-center gap-2 hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Clock size={20} />
-            บันทึกเวลา
-          </button>
         </div>
+        
+        <button
+          disabled={loading}
+          onClick={handleSaveSchedule}
+          className={`w-full py-3 rounded-xl mt-4 flex justify-center items-center gap-2 transition-colors ${
+            loading ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700 text-white"
+          }`}
+        >
+          <Clock size={20} />
+          บันทึกการตั้งค่า
+        </button>
       </div>
     </div>
   );
