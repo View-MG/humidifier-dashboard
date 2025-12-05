@@ -22,7 +22,6 @@ export async function POST(req: NextRequest) {
         updated_at: Date.now(),
       });
       
-      // ✅ แก้ไขข้อความแจ้งเตือนเป็น ON/OFF
       const fanMsg = body.fan_state ? "ON" : "OFF";
       const steamMsg = body.steam_state ? "ON" : "OFF";
 
@@ -37,19 +36,16 @@ export async function POST(req: NextRequest) {
     // -------------------------------------------------------
     if (body.type === "mode") {
       
-      // อัปเดต Mode ของ Fan
       await db.ref("fan/control").update({
         mode: body.mode,
         updated_at: Date.now(),
       });
 
-      // อัปเดต Mode ของ Steam
       await db.ref("steam/control").update({
         mode: body.mode,
         update_at: Date.now()
       });
 
-      // อัปเดตค่าความชื้น เฉพาะตอนที่เป็นโหมด "auto" เท่านั้น
       if (body.mode === "auto") {
         const targetHumid = body.target_humidity ?? 0;
         
@@ -88,39 +84,36 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ✅ เพิ่มฟังก์ชัน GET สำหรับดึงข้อมูลล่าสุด
+// ✅ ฟังก์ชัน GET ที่แก้ไขแล้ว
 export async function GET() {
   try {
-    // 1. ดึง Fan/Steam State จาก path "status" ตามที่ขอ
-    const fanStatusSnap = await db.ref("fan/status").get();
-    const steamStatusSnap = await db.ref("steam/status").get();
-
-    // 2. ดึง Mode และ Schedule จาก path "control" (เพราะเรา save ลง control)
+    // 1. ดึงข้อมูล Control ทั้งหมด (รวม manual_state, mode, schedule)
+    // การดึงทั้งก้อน fan/control จะได้ manual_state ที่อยู่ข้างในมาด้วยเลย
     const fanControlSnap = await db.ref("fan/control").get(); 
+    const steamControlSnap = await db.ref("steam/control").get();
     
-    // 3. ดึง Humidity จาก path "humidity/control"
+    // 2. ดึง Humidity
     const humidControlSnap = await db.ref("humidity/control").get();
 
-    const fanStatus = fanStatusSnap.val() || {};
-    const steamStatus = steamStatusSnap.val() || {};
-    const fanControl = fanControlSnap.val() || {};
-    const humidControl = humidControlSnap.val() || {};
+    const fanData = fanControlSnap.val() || {};
+    const steamData = steamControlSnap.val() || {};
+    const humidData = humidControlSnap.val() || {};
 
     // จัดเตรียมข้อมูลส่งกลับ
     const responseData = {
-      // ใช้ manual_state จาก status (ถ้าไม่มีให้ใช้ false)
-      isFanOn: fanStatus.manual_state ?? false, 
-      isSteamOn: steamStatus.manual_state ?? false,
+      // ✅ ดึงค่า manual_state จาก path fan/control/manual_state ที่ถูกต้อง
+      isFanOn: fanData.manual_state ?? false, 
+      isSteamOn: steamData.manual_state ?? false,
       
-      // Mode
-      mode: fanControl.mode ?? "off",
+      // Mode (ดึงจาก fan/control/mode)
+      mode: fanData.mode ?? "off",
       
-      // Schedule (ถ้าเป็น "0" คือปิด)
-      sched_start: fanControl.sched_start ?? "0",
-      sched_end: fanControl.sched_end ?? "0",
+      // Schedule (ดึงจาก fan/control/sched_start...)
+      sched_start: fanData.sched_start ?? "0",
+      sched_end: fanData.sched_end ?? "0",
       
       // Humidity
-      target_humidity: humidControl.target_humidity ?? 60
+      target_humidity: humidData.target_humidity ?? 60
     };
 
     return NextResponse.json({ ok: true, data: responseData });
