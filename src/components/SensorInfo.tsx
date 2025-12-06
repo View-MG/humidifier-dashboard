@@ -9,9 +9,7 @@ interface SensorInfoProps {
 
 export default function SensorInfo({ data }: SensorInfoProps) {
   return (
-    // VVVV แก้ไขคลาส: ใช้ grid grid-cols-1 เพื่อเรียงเป็นคอลัมน์เดียวเสมอ VVVV
-    <div className="grid grid-cols-1 gap-4"> 
-        
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <SensorCard
         title="Temperature"
         value={data.temp ?? "--"}
@@ -39,7 +37,7 @@ export default function SensorInfo({ data }: SensorInfoProps) {
         icon={<Compass className="w-7 h-7 text-blue-600" />}
         unit="°"
       />
-
+      
     </div>
   );
 }
