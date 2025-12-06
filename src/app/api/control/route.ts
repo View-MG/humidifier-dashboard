@@ -56,26 +56,50 @@ export async function POST(req: NextRequest) {
     // -------------------------------------------------------
     // 3. Schedule Control (จุดที่แก้ไข)
     // -------------------------------------------------------
-    if (body.type === "schedule") {
-      // 3.1 บันทึกสถานะ Enable/Disable ไว้ที่ node แยก
-      await db.ref("schedule/enable").set(body.enabled);
+    // 3. Schedule Control (จุดที่แก้ไข)
+if (body.type === "schedule") {
+  // 3.1 เก็บสถานะเปิด/ปิด schedule แยกไว้
+  await db.ref("schedule/enable").set(body.enabled);
 
-      // 3.2 บันทึกเวลาเริ่ม-จบ (แก้ไข: บันทึกเวลาตามที่ส่งมาเสมอ ไม่ต้องเช็ค enabled)
-      // เพื่อให้ Hardware อ่านค่าเวลาได้ตลอด และ UI ไม่รีเซ็ตค่าเป็น 0
-      const schedData = {
-        sched_start: body.sched_start ?? "0",
-        sched_end: body.sched_end ?? "0",
-        updated_at: Date.now(),
-      };
+  // 3.2 ค่าจาก frontend (เป็น unix timestamp แบบ string)
+  const schedStartUnix = body.sched_start ?? "0";
+  const schedEndUnix = body.sched_end ?? "0";
 
-      await db.ref("fan/control").update(schedData);
-      await db.ref("steam/control").update(schedData);
+  // สำหรับ fan: เก็บเป็น unix เหมือนเดิม
+  const fanSchedData = {
+    sched_start: schedStartUnix,
+    sched_end: schedEndUnix,
+    updated_at: Date.now(),
+  };
 
-      return NextResponse.json({ 
-        ok: true, 
-        message: body.enabled ? "เปิดการตั้งเวลาแล้ว" : "ปิดการตั้งเวลา (บันทึกเวลาเดิมไว้)" 
-      });
-    }
+  // helper แปลง unix → "HH:MM"
+  const toHHMM = (unixStr: string): string => {
+    const ts = parseInt(unixStr, 10);
+    if (isNaN(ts) || ts <= 0) return "00:00";
+    const d = new Date(ts * 1000);
+    const hh = d.getHours().toString().padStart(2, "0");
+    const mm = d.getMinutes().toString().padStart(2, "0");
+    return `${hh}:${mm}`;
+  };
+
+  // สำหรับ steam: แปลงทั้ง start/stop เป็น HH:MM
+  const steamSchedData = {
+    sched_start: toHHMM(schedStartUnix), // ✅ HH:MM
+    sched_end: toHHMM(schedEndUnix),     // ✅ HH:MM
+    updated_at: Date.now(),
+  };
+
+  await db.ref("fan/control").update(fanSchedData);
+  await db.ref("steam/control").update(steamSchedData);
+
+  return NextResponse.json({
+    ok: true,
+    message: body.enabled
+      ? "เปิดการตั้งเวลาแล้ว"
+      : "ปิดการตั้งเวลา (บันทึกเวลาเดิมไว้)",
+  });
+}
+
 
     return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 });
 
