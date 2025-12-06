@@ -52,7 +52,6 @@ export default function ControlPage() {
           setIsAutoMode(autoEnabled);
           setTargetHumid(target_humidity.toString());
 
-          // ถ้า Auto เปิดอยู่ ให้โชว์ว่า Fan/Steam เปิดอยู่
           if (autoEnabled) {
             setIsFanOn(true);
             setIsSteamOn(true);
@@ -61,23 +60,21 @@ export default function ControlPage() {
             setIsSteamOn(isSteamOn);
           }
 
-          // จัดการ Schedule State
           if (typeof schedule_enabled === "boolean") {
             setIsScheduleEnabled(schedule_enabled);
           } else {
-            // Fallback
             setIsScheduleEnabled(sched_start !== "0" && sched_end !== "0");
           }
           
-          // Set Time values
+          // Set Time values (เฉพาะถ้าค่าไม่ใช่ 0)
           const start = unixToTime(sched_start);
           const end = unixToTime(sched_end);
-             
-          if (start) {
+              
+          if (start && sched_start !== "0") {
              setStartHour(start.hh);
              setStartMin(start.mm);
           }
-          if (end) {
+          if (end && sched_end !== "0") {
              setStopHour(end.hh);
              setStopMin(end.mm);
           }
@@ -165,6 +162,7 @@ export default function ControlPage() {
     const nextState = !isScheduleEnabled;
     setIsScheduleEnabled(nextState);
 
+    // ส่งเวลาปัจจุบันไปด้วยเสมอ เพื่อไม่ให้เวลาใน DB หาย
     const payload: SchedulePayload = {
         type: "schedule",
         enabled: nextState,
@@ -267,6 +265,7 @@ export default function ControlPage() {
       <div className="bg-white p-4 rounded-xl shadow">
         <h2 className="font-semibold mb-3 text-black">Scheduling</h2>
 
+        {/* ปุ่ม Toggle Enable/Disable */}
         <div 
           className="flex justify-end items-center mb-4 cursor-pointer gap-3" 
           onClick={handleToggleSchedule}
@@ -281,15 +280,16 @@ export default function ControlPage() {
           </div>
         </div>
 
-        <div className={`space-y-4 text-black transition-opacity duration-300 ${isScheduleEnabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+        {/* ส่วนเลือกเวลา - แก้ไข: ลบ pointer-events-none/opacity ออก เพื่อให้กดได้ตลอด */}
+        <div className={`space-y-4 text-black transition-opacity duration-300`}>
           <div className="flex justify-between items-center">
             <span>เริ่ม</span>
             <div className="flex gap-1">
-              <select className="text-black bg-white border border-gray-300 rounded" value={startHour} onChange={(e) => setStartHour(e.target.value)}>
+              <select className="text-black bg-white border border-gray-300 rounded p-1" value={startHour} onChange={(e) => setStartHour(e.target.value)}>
                 {hours.map((h) => <option key={h} value={h}>{h}</option>)}
               </select>
-              :
-              <select className="text-black bg-white border border-gray-300 rounded" value={startMin} onChange={(e) => setStartMin(e.target.value)}>
+              <span className="self-center">:</span>
+              <select className="text-black bg-white border border-gray-300 rounded p-1" value={startMin} onChange={(e) => setStartMin(e.target.value)}>
                 {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
@@ -298,11 +298,11 @@ export default function ControlPage() {
           <div className="flex justify-between items-center">
             <span>สิ้นสุด</span>
             <div className="flex gap-1">
-              <select className="text-black bg-white border border-gray-300 rounded" value={stopHour} onChange={(e) => setStopHour(e.target.value)}>
+              <select className="text-black bg-white border border-gray-300 rounded p-1" value={stopHour} onChange={(e) => setStopHour(e.target.value)}>
                 {hours.map((h) => <option key={h} value={h}>{h}</option>)}
               </select>
-              :
-              <select className="text-black bg-white border border-gray-300 rounded" value={stopMin} onChange={(e) => setStopMin(e.target.value)}>
+              <span className="self-center">:</span>
+              <select className="text-black bg-white border border-gray-300 rounded p-1" value={stopMin} onChange={(e) => setStopMin(e.target.value)}>
                 {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>

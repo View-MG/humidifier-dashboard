@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Mode Control
+    // 2. Mode Control (Auto/Off)
     if (body.type === "mode") {
       await db.ref("fan/control").update({
         mode: body.mode,
@@ -54,23 +54,27 @@ export async function POST(req: NextRequest) {
     }
 
     // -------------------------------------------------------
-    // 3. Schedule Control (แก้ไขตรงนี้)
+    // 3. Schedule Control (จุดที่แก้ไข)
     // -------------------------------------------------------
     if (body.type === "schedule") {
-      // ✅ 3.1 บันทึกสถานะ Enable/Disable ลงใน Node ใหม่ "schedule/enable"
+      // 3.1 บันทึกสถานะ Enable/Disable ไว้ที่ node แยก
       await db.ref("schedule/enable").set(body.enabled);
 
-      // 3.2 บันทึกเวลาเริ่ม-จบ ลงใน Fan และ Steam (ตาม Logic เดิมเพื่อให้ Hardware อ่านค่าได้)
+      // 3.2 บันทึกเวลาเริ่ม-จบ (แก้ไข: บันทึกเวลาตามที่ส่งมาเสมอ ไม่ต้องเช็ค enabled)
+      // เพื่อให้ Hardware อ่านค่าเวลาได้ตลอด และ UI ไม่รีเซ็ตค่าเป็น 0
       const schedData = {
-        sched_start: body.enabled ? (body.sched_start ?? "0") : "0",
-        sched_end: body.enabled ? (body.sched_end ?? "0") : "0",
+        sched_start: body.sched_start ?? "0",
+        sched_end: body.sched_end ?? "0",
         updated_at: Date.now(),
       };
 
       await db.ref("fan/control").update(schedData);
       await db.ref("steam/control").update(schedData);
 
-      return NextResponse.json({ ok: true, message: body.enabled ? "Schedule Enabled" : "Schedule Disabled" });
+      return NextResponse.json({ 
+        ok: true, 
+        message: body.enabled ? "เปิดการตั้งเวลาแล้ว" : "ปิดการตั้งเวลา (บันทึกเวลาเดิมไว้)" 
+      });
     }
 
     return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 });
@@ -81,20 +85,17 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ✅ GET Function
 export async function GET() {
   try {
     const fanControlSnap = await db.ref("fan/control").get(); 
     const steamControlSnap = await db.ref("steam/control").get();
     const humidControlSnap = await db.ref("humidity/control").get();
-    
-    // ✅ เพิ่มการดึงค่าจาก schedule/enable
     const scheduleEnableSnap = await db.ref("schedule/enable").get();
 
     const fanData = fanControlSnap.val() || {};
     const steamData = steamControlSnap.val() || {};
     const humidData = humidControlSnap.val() || {};
-    const scheduleEnabled = scheduleEnableSnap.val(); // จะได้ true/false หรือ null
+    const scheduleEnabled = scheduleEnableSnap.val(); 
 
     const responseData = {
       isFanOn: fanData.manual_state ?? false, 
@@ -103,8 +104,6 @@ export async function GET() {
       sched_start: fanData.sched_start ?? "0",
       sched_end: fanData.sched_end ?? "0",
       target_humidity: humidData.target_humidity ?? 60,
-      
-      // ✅ ส่งค่า schedule_enabled กลับไป (ถ้าไม่มีค่า ให้เช็คจากเวลาเอาเหมือนเดิมเป็น fallback)
       schedule_enabled: scheduleEnabled
     };
 
