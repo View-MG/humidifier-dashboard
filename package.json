@@ -8,21 +8,20 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-
-    "ws": "node ws/audio-server.js",             
-    "dev:all": "concurrently \"next dev\" \"node ws/audio-server.js\""  
+    "ws": "node ws/audio-server.js",
+    "dev:all": "concurrently \"next dev\" \"node ws/audio-server.js\""
   },
   "dependencies": {
+    "concurrently": "^8.2.2",
     "firebase": "^12.6.0",
     "firebase-admin": "^13.6.0",
     "lucide-react": "^0.554.0",
+    "mongoose": "^9.0.1",
     "next": "16.0.3",
+    "openai": "^6.10.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-
-    "ws": "^8.18.2",
-    "openai": "^6.10.0",
-    "concurrently": "^8.2.2"
+    "ws": "^8.18.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
