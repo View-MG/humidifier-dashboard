@@ -3,5 +3,4 @@ declare interface SensorData {
   humidity: number;
   water: number;
   tilt: number;
-  button: boolean;
 }
