@@ -49,27 +49,6 @@ export default function Home() {
             </span>
           </Link>
 
-          {/* ปุ่มใหม่: Dashboard */}
-          <Link
-            href="/dashboard"
-            className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white transition-all duration-200 bg-transparent border border-white/10 rounded-full hover:border-purple-500/50 hover:bg-purple-500/10 hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.4)] focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-black w-64"
-          >
-            <span className="absolute inset-0 w-full h-full -mt-1 rounded-lg opacity-30 bg-gradient-to-b from-transparent via-transparent to-gray-700"></span>
-            <span className="relative flex items-center gap-3">
-              DASHBOARD
-              {/* เปลี่ยนไอคอนเป็นรูปกราฟเพื่อให้ต่างกัน */}
-              <svg 
-                className="w-5 h-5 transition-transform duration-300 transform group-hover:scale-110" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24" 
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-              </svg>
-            </span>
-          </Link>
-
         </div>
       </div>
 
