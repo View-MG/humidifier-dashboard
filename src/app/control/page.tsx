@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Clock, RefreshCw, Power } from "lucide-react";
-// import database client ที่สร้างตะกี้
-import { ref, onValue, set} from "firebase/database";
+import { Clock, RefreshCw, Power, Thermometer, Zap, Calendar } from "lucide-react";
+// import database client
+import { ref, onValue, set } from "firebase/database";
 import { db } from "@/lib/firebase/firebaseClient";
 
 import type {
   ControlPayload,
-  // ManualPayload, 
   SchedulePayload,
   ApiResponse,
   ModeType
@@ -21,9 +20,9 @@ export default function ControlPage() {
   const [loading, setLoading] = useState(false);
   const [apiMessage, setApiMessage] = useState("");
 
-  const [isControlOn, setIsControlOn] = useState(false); 
+  const [isControlOn, setIsControlOn] = useState(false);
   const [isAutoMode, setIsAutoMode] = useState(false);
-  
+
   const [targetHumid, setTargetHumid] = useState("60");
 
   const [startHour, setStartHour] = useState("08");
@@ -32,7 +31,7 @@ export default function ControlPage() {
   const [stopMin, setStopMin] = useState("00");
   const [isScheduleEnabled, setIsScheduleEnabled] = useState(false);
 
-  // Helper: Call API (ย้ายมาไว้นอก useEffect หรือใช้ useCallback เหมือนเดิม)
+  // Helper: Call API
   const callApi = useCallback(async (payload: ControlPayload | any) => {
     setLoading(true);
     setApiMessage("");
@@ -50,6 +49,7 @@ export default function ControlPage() {
         setApiMessage("❌ " + (data.error || "Error"));
       } else {
         setApiMessage("✅ " + (data.message || "Success"));
+        setTimeout(() => setApiMessage(""), 3000);
       }
     } catch {
       setApiMessage("❌ API Error");
@@ -58,18 +58,11 @@ export default function ControlPage() {
     }
   }, []);
 
-  // -------------------------------------------------------------
-  // 🟢 ส่วนที่เพิ่มใหม่: Voice Listener (ทำงานหน้าบ้าน)
-  // -------------------------------------------------------------
+  // Voice Listener
   useEffect(() => {
-    // อ้างอิงไปที่ node speech_latest/text
     const speechRef = ref(db, 'speech_latest/text');
-
-    // onValue จะทำงานทุกครั้งที่ firebase มีการเปลี่ยนแปลง (Realtime)
     const unsubscribe = onValue(speechRef, async (snapshot) => {
       const text = snapshot.val();
-
-      // ถ้ามีข้อความเข้ามา
       if (typeof text === 'string' && text.trim() !== "") {
         const lowerText = text.toLowerCase();
         let commandState: boolean | null = null;
@@ -80,41 +73,28 @@ export default function ControlPage() {
           commandState = false;
         }
 
-        // ถ้าเจอคำสั่ง Open/Close
         if (commandState !== null) {
           console.log(`🎤 Voice Detected: "${text}" -> Action: ${commandState}`);
-
-          // 1. เรียกฟังก์ชัน callApi เพื่อยิงไป Backend (route.ts)
-          // เพื่อให้ Backend จัดการ Logic การเปลี่ยนโหมด/บันทึกเวลา ให้เหมือนกดปุ่ม
-          await callApi({ 
-            type: "manual", 
-            control: commandState 
+          await callApi({
+            type: "manual",
+            control: commandState
           });
-
-          // 2. อัปเดตหน้าจอทันที (เพื่อให้รู้สึกลื่นไหล)
           setIsControlOn(commandState);
           setIsAutoMode(false);
-
-          // 3. ***สำคัญ*** ลบข้อความเสียงทิ้ง เพื่อไม่ให้ทำงานซ้ำ
-          // ใช้ set ของ firebase client โดยตรงเพื่อความไว
-          set(speechRef, ""); 
+          set(speechRef, "");
         }
       }
     });
-
-    // Cleanup function เมื่อปิดหน้าเว็บ
     return () => unsubscribe();
-  }, [callApi]); // dependency array
+  }, [callApi]);
 
-  // -------------------------------------------------------------
-
-  // 1. ดึงข้อมูลเริ่มต้นจาก API (เหมือนเดิม)
+  // Fetch Initial Data
   useEffect(() => {
     const fetchData = async () => {
       try {
         const res = await fetch("/api/control");
         const json = await res.json();
-        
+
         if (json.ok && json.data) {
           const { control, mode, sched_start, sched_end, target_humidity, schedule_enabled } = json.data;
 
@@ -129,14 +109,14 @@ export default function ControlPage() {
           }
 
           setIsScheduleEnabled(!!schedule_enabled);
-          
+
           if (sched_start && sched_start.includes(":")) {
-             const [hh, mm] = sched_start.split(":");
-             setStartHour(hh); setStartMin(mm);
+            const [hh, mm] = sched_start.split(":");
+            setStartHour(hh); setStartMin(mm);
           }
           if (sched_end && sched_end.includes(":")) {
-             const [hh, mm] = sched_end.split(":");
-             setStopHour(hh); setStopMin(mm);
+            const [hh, mm] = sched_end.split(":");
+            setStopHour(hh); setStopMin(mm);
           }
         }
       } catch (error) {
@@ -149,13 +129,13 @@ export default function ControlPage() {
 
   // Actions
   const handlePowerToggle = () => {
-    const newState = !isControlOn; 
-    const payload = { 
-        type: "manual", 
-        control: newState 
+    const newState = !isControlOn;
+    const payload = {
+      type: "manual",
+      control: newState
     };
     callApi(payload);
-    
+
     setIsControlOn(newState);
     setIsAutoMode(false);
   };
@@ -177,11 +157,12 @@ export default function ControlPage() {
     const nextState = !isScheduleEnabled;
     setIsScheduleEnabled(nextState);
 
+    // เมื่อกด Toggle ให้ยิง API ไปบันทึกสถานะใหม่ พร้อมกับเวลาปัจจุบันที่ตั้งไว้
     const payload: SchedulePayload = {
-        type: "schedule",
-        enabled: nextState,
-        sched_start: `${startHour}:${startMin}`, 
-        sched_end: `${stopHour}:${stopMin}`,
+      type: "schedule",
+      enabled: nextState,
+      sched_start: `${startHour}:${startMin}`,
+      sched_end: `${stopHour}:${stopMin}`,
     };
     callApi(payload);
   };
@@ -189,7 +170,7 @@ export default function ControlPage() {
   const handleSaveSchedule = () => {
     const payload: SchedulePayload = {
       type: "schedule",
-      enabled: isScheduleEnabled, 
+      enabled: isScheduleEnabled,
       sched_start: `${startHour}:${startMin}`,
       sched_end: `${stopHour}:${stopMin}`,
     };
@@ -198,137 +179,171 @@ export default function ControlPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6">
-      <div className="max-w-xl mx-auto">
-        <h1 className="text-xl font-bold mb-4 text-white">Smart Control System</h1>
+    // Background: Dark gradient with subtle tech vibes
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black text-gray-100 p-6 flex items-center justify-center font-sans">
+      
+      <div className="w-full max-w-lg relative">
+        
+        {/* Decorative Background Glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none" />
 
-        {apiMessage && (
-          <div className="p-3 mb-3 text-center bg-green-900/40 border border-green-800 text-green-200 rounded-lg">
-            {apiMessage}
+        <div className="relative z-10 space-y-6">
+          
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 drop-shadow-lg">
+              CONTROL CENTER
+            </h1>
+            <p className="text-gray-500 text-sm tracking-widest uppercase mt-2">Smart Huminity</p>
           </div>
-        )}
 
-        {/* Manual section */}
-        <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl shadow mb-4">
-          <h2 className="font-semibold mb-2 text-gray-200">System Power</h2>
-          <div className="w-full">
+          {/* Alert Message */}
+          <div className={`transition-all duration-500 overflow-hidden ${apiMessage ? "max-h-20 opacity-100" : "max-h-0 opacity-0"}`}>
+            <div className="mx-auto w-fit px-6 py-2 rounded-full backdrop-blur-md bg-white/5 border border-white/10 text-sm font-medium shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+              {apiMessage}
+            </div>
+          </div>
+
+          {/* 1. Power Control Card */}
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/40 backdrop-blur-xl shadow-2xl transition-all duration-300 hover:border-white/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+            
+            <div className="relative p-6">
+              <div className="flex items-center gap-3 mb-4 text-gray-400">
+                <Zap size={18} className="text-cyan-400" />
+                <span className="text-sm font-bold tracking-wider uppercase">System Power</span>
+              </div>
+
+              <button
+                disabled={loading || isAutoMode}
+                onClick={handlePowerToggle}
+                className={`w-full relative py-8 rounded-xl flex items-center justify-center gap-4 transition-all duration-500 border overflow-hidden ${
+                  isControlOn
+                    ? "bg-cyan-950/30 border-cyan-500/50 shadow-[0_0_40px_-10px_rgba(6,182,212,0.5)] text-cyan-50"
+                    : "bg-neutral-800/50 border-white/5 text-gray-500 hover:bg-neutral-800"
+                } ${isAutoMode ? "opacity-50 grayscale cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}`}
+              >
+                 {/* Glowing Background for ON state */}
+                 {isControlOn && <div className="absolute inset-0 bg-cyan-500/10 animate-pulse" />}
+
+                <Power className={`w-10 h-10 z-10 ${isControlOn ? "drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]" : ""}`} />
+                <span className="text-2xl font-black tracking-widest z-10">
+                  {isControlOn ? "ACTIVE" : "STANDBY"}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Auto Mode Card */}
+          <div className="rounded-2xl border border-white/10 bg-neutral-900/40 backdrop-blur-xl shadow-lg p-6">
+             <div className="flex items-center gap-3 mb-4 text-gray-400">
+                <RefreshCw size={18} className="text-fuchsia-400" />
+                <span className="text-sm font-bold tracking-wider uppercase">Auto Automation</span>
+              </div>
+
+            <div className="flex gap-4 items-end mb-4">
+              <div className="flex-1">
+                <label className="text-xs text-gray-400 mb-2 block uppercase tracking-wider">Target Humidity</label>
+                <div className="relative group/input">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={targetHumid}
+                    onChange={(e) => setTargetHumid(e.target.value)}
+                    disabled={loading || isAutoMode}
+                    className={`w-full bg-black/40 border text-2xl font-mono p-3 pl-12 rounded-lg transition-all focus:outline-none ${
+                        isAutoMode 
+                        ? "border-white/5 text-gray-600 cursor-not-allowed" 
+                        : "border-white/10 text-white focus:border-fuchsia-500/50 focus:shadow-[0_0_20px_-5px_rgba(217,70,239,0.3)]"
+                    }`}
+                  />
+                  <Thermometer className={`absolute left-4 top-4 w-5 h-5 transition-colors ${isAutoMode ? 'text-gray-700' : 'text-fuchsia-500'}`} />
+                  <span className="absolute right-4 top-4 text-gray-500 font-mono">%</span>
+                </div>
+              </div>
+            </div>
+
             <button
-              disabled={loading || isAutoMode}
-              onClick={handlePowerToggle}
-              className={`w-full py-6 rounded-xl flex flex-row items-center justify-center gap-3 transition-all duration-300 border ${
-                isControlOn 
-                  ? "bg-emerald-600 text-white border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" 
-                  : "bg-zinc-800 text-gray-400 border-zinc-700 hover:bg-zinc-700"
-              } ${isAutoMode ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={loading}
+              onClick={handleAutoToggle}
+              className={`w-full py-4 rounded-lg flex items-center justify-center gap-3 font-bold tracking-wide transition-all duration-300 border ${
+                isAutoMode
+                  ? "bg-fuchsia-950/30 border-fuchsia-500/50 text-fuchsia-300 shadow-[0_0_30px_-10px_rgba(192,38,211,0.4)]"
+                  : "bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
+              }`}
             >
-              <Power className={`w-8 h-8 ${isControlOn ? "text-white drop-shadow-md" : "text-gray-500"}`} />
-              <span className="text-xl font-bold tracking-wide">
-                {isControlOn ? "SYSTEM ON" : "SYSTEM OFF"}
-              </span>
+              <RefreshCw className={isAutoMode ? "animate-spin" : ""} size={20} />
+              {isAutoMode ? "AUTO MODE : ON" : "ENABLE AUTO MODE"}
             </button>
           </div>
-        </div>
 
-        {/* Auto */}
-        <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl shadow mb-4">
-          <h2 className="font-semibold mb-3 text-gray-200">Auto Mode</h2>
-          <div className="mb-4">
-            <label className="block text-gray-300 mb-2 text-sm font-medium">
-              ความชื้นที่ต้องการ (%) 
-              {isAutoMode && <span className="text-red-400 ml-2 text-xs">(ปิด Auto เพื่อแก้ไข)</span>}
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={targetHumid}
-                onChange={(e) => setTargetHumid(e.target.value)}
-                disabled={loading || isAutoMode}
-                placeholder="Ex. 60"
-                className={`w-full border rounded-xl p-3 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                  isAutoMode 
-                    ? "bg-zinc-900 border-zinc-800 text-gray-500 cursor-not-allowed" 
-                    : "bg-zinc-800 border-zinc-700 text-white placeholder-gray-500"
-                }`}
-              />
-              <span className="absolute right-4 top-3 text-gray-400 font-semibold">%</span>
-            </div>
-          </div>
-
-          <button
-            disabled={loading}
-            onClick={handleAutoToggle}
-            className={`w-full py-3 rounded-xl flex items-center justify-center gap-2 transition-colors ${
-              isAutoMode 
-                ? "bg-indigo-600 text-white hover:bg-indigo-500" 
-                : "bg-indigo-900/30 text-indigo-300 hover:bg-indigo-900/50 border border-indigo-900"
-            }`}
-          >
-            <RefreshCw className={isAutoMode ? "animate-spin" : ""} size={20} />
-            {isAutoMode ? "ปิด Auto Mode" : "เปิด Auto Mode"}
-          </button>
-        </div>
-
-        {/* Schedule */}
-        <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl shadow">
-          <h2 className="font-semibold mb-3 text-gray-200">Scheduling</h2>
-
-          {/* ปุ่ม Toggle Enable/Disable */}
-          <div 
-            className="flex justify-end items-center mb-4 cursor-pointer gap-3" 
-            onClick={handleToggleSchedule}
-          >
-            <span className="text-gray-300 font-medium select-none">เปิดการตั้งเวลา</span>
-            <div className={`relative w-12 h-7 rounded-full transition-colors duration-200 ease-in-out ${
-              isScheduleEnabled ? "bg-green-600" : "bg-zinc-700"
-            }`}>
-              <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow transform transition-transform duration-200 ease-in-out ${
-                isScheduleEnabled ? "translate-x-5" : "translate-x-0"
-              }`} />
-            </div>
-          </div>
-
-          <div className={`space-y-4 text-gray-300 transition-opacity duration-300`}>
-            <div className="flex justify-between items-center">
-              <span>เริ่ม</span>
-              <div className="flex gap-1">
-                <select className="bg-zinc-800 border border-zinc-700 text-white rounded p-1" value={startHour} onChange={(e) => setStartHour(e.target.value)}>
-                  {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                </select>
-                <span className="self-center text-gray-500">:</span>
-                <select className="bg-zinc-800 border border-zinc-700 text-white rounded p-1" value={startMin} onChange={(e) => setStartMin(e.target.value)}>
-                  {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
+          {/* 3. Schedule Card */}
+          <div className="rounded-2xl border border-white/10 bg-neutral-900/40 backdrop-blur-xl shadow-lg p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3 text-gray-400">
+                <Calendar size={18} className="text-emerald-400" />
+                <span className="text-sm font-bold tracking-wider uppercase">Scheduler</span>
+              </div>
+              
+              {/* Custom Toggle Switch */}
+              <div 
+                onClick={handleToggleSchedule}
+                className={`relative w-14 h-7 rounded-full cursor-pointer transition-colors duration-300 ${isScheduleEnabled ? 'bg-emerald-500/20 border border-emerald-500/50' : 'bg-neutral-800 border border-white/10'}`}
+              >
+                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full shadow-md transition-transform duration-300 ${
+                    isScheduleEnabled ? 'translate-x-7 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]' : 'translate-x-0 bg-gray-500'
+                }`} />
               </div>
             </div>
 
-            <div className="flex justify-between items-center">
-              <span>สิ้นสุด</span>
-              <div className="flex gap-1">
-                <select className="bg-zinc-800 border border-zinc-700 text-white rounded p-1" value={stopHour} onChange={(e) => setStopHour(e.target.value)}>
-                  {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                </select>
-                <span className="self-center text-gray-500">:</span>
-                <select className="bg-zinc-800 border border-zinc-700 text-white rounded p-1" value={stopMin} onChange={(e) => setStopMin(e.target.value)}>
-                  {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
+            {/* ส่วนที่แก้ไข: ลบ opacity และ pointer-events-none ออก เพื่อให้แก้ได้ตลอดเวลา */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Start Time */}
+                <div className="bg-black/20 p-3 rounded-lg border border-white/5">
+                  <span className="block text-xs text-gray-500 mb-1 uppercase text-center">Start Time</span>
+                  <div className="flex justify-center items-center gap-1 font-mono text-lg">
+                    <select className="bg-transparent text-white focus:outline-none cursor-pointer hover:text-emerald-400 transition-colors" value={startHour} onChange={(e) => setStartHour(e.target.value)}>
+                      {hours.map((h) => <option key={h} value={h} className="bg-neutral-900">{h}</option>)}
+                    </select>
+                    <span className="text-gray-600">:</span>
+                    <select className="bg-transparent text-white focus:outline-none cursor-pointer hover:text-emerald-400 transition-colors" value={startMin} onChange={(e) => setStartMin(e.target.value)}>
+                      {minutes.map((m) => <option key={m} value={m} className="bg-neutral-900">{m}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Stop Time */}
+                <div className="bg-black/20 p-3 rounded-lg border border-white/5">
+                  <span className="block text-xs text-gray-500 mb-1 uppercase text-center">Stop Time</span>
+                  <div className="flex justify-center items-center gap-1 font-mono text-lg">
+                    <select className="bg-transparent text-white focus:outline-none cursor-pointer hover:text-red-400 transition-colors" value={stopHour} onChange={(e) => setStopHour(e.target.value)}>
+                      {hours.map((h) => <option key={h} value={h} className="bg-neutral-900">{h}</option>)}
+                    </select>
+                    <span className="text-gray-600">:</span>
+                    <select className="bg-transparent text-white focus:outline-none cursor-pointer hover:text-red-400 transition-colors" value={stopMin} onChange={(e) => setStopMin(e.target.value)}>
+                      {minutes.map((m) => <option key={m} value={m} className="bg-neutral-900">{m}</option>)}
+                    </select>
+                  </div>
+                </div>
               </div>
+
+              <button
+                disabled={loading}
+                onClick={handleSaveSchedule}
+                className="w-full py-3 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 hover:shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)] transition-all font-medium flex justify-center items-center gap-2"
+              >
+                <Clock size={18} />
+                Save Schedule
+              </button>
             </div>
           </div>
           
-          <button
-            disabled={loading}
-            onClick={handleSaveSchedule}
-            className={`w-full py-3 rounded-xl mt-4 flex justify-center items-center gap-2 transition-colors ${
-              loading 
-              ? "bg-zinc-700 cursor-not-allowed text-gray-500" 
-              : "bg-green-700 hover:bg-green-600 text-white"
-            }`}
-          >
-            <Clock size={20} />
-            บันทึกการตั้งค่า
-          </button>
+          <div className="text-center text-xs text-gray-700 font-mono">
+             SYSTEM ID: ESP32-CTRL-01 • CONNECTED
+          </div>
+
         </div>
       </div>
     </div>

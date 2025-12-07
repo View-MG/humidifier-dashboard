@@ -27,19 +27,11 @@ export default function LivePage() {
   }, []);
 
   return (
-    // ปรับ Container หลัก:
-    // min-h-screen: ให้ความสูงเต็มจอภาพ
-    // bg-black: พื้นหลังสีดำ
-    // text-white: ตัวหนังสือสีขาว
     <div className="min-h-screen bg-black text-white p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-6 text-gray-100">
           📡 Live Sensor Dashboard
         </h1>
-        
-        {/* หมายเหตุ: ถ้า component SensorInfo มีการกำหนดสีพื้นหลัง (bg-white) ไว้ข้างในตัวมันเอง 
-          คุณอาจจะต้องเข้าไปแก้ที่ไฟล์ SensorInfo.tsx ด้วยเพื่อให้เข้ากับ Theme ดำ 
-        */}
         <SensorInfo data={sensor} />
       </div>
     </div>
