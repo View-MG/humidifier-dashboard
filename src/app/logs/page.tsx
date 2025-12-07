@@ -8,7 +8,10 @@ interface LogEntry {
   water: number;
   tilt: number;
   button: boolean;
-  created_at: string;
+  created_at: {
+    seconds: number;
+    nanoseconds: number;
+  };
 }
 
 export default function LogsPage() {
@@ -29,8 +32,11 @@ export default function LogsPage() {
 
       <div className="mt-6 space-y-4">
         {logs.map((log, index) => (
-          <div key={index} className="border rounded-md p-4 bg-gray-100">
-            <p className="font-semibold">{log.created_at}</p>
+          // เพิ่ม text-black ตรงนี้ครับ
+          <div key={index} className="border rounded-md p-4 bg-gray-100 text-black">
+            <p className="font-semibold">
+              {new Date(log.created_at.seconds * 1000).toLocaleString('th-TH')}
+            </p>
             <p>Temp: {log.temp}</p>
             <p>Humidity: {log.humidity}</p>
             <p>Water: {log.water}</p>
