@@ -2,9 +2,13 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Clock, RefreshCw, Power } from "lucide-react";
+// import database client ที่สร้างตะกี้
+import { ref, onValue, set} from "firebase/database";
+import { db } from "@/lib/firebase/firebaseClient";
+
 import type {
   ControlPayload,
-  // ManualPayload, // ถ้าไม่ได้ใช้ลบออกได้
+  // ManualPayload, 
   SchedulePayload,
   ApiResponse,
   ModeType
@@ -28,48 +32,7 @@ export default function ControlPage() {
   const [stopMin, setStopMin] = useState("00");
   const [isScheduleEnabled, setIsScheduleEnabled] = useState(false);
 
-  // 1. ดึงข้อมูลเริ่มต้นจาก API
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch("/api/control");
-        const json = await res.json();
-        
-        if (json.ok && json.data) {
-          const { control, mode, sched_start, sched_end, target_humidity, schedule_enabled } = json.data;
-
-          const autoEnabled = mode === "auto";
-          setIsAutoMode(autoEnabled);
-          setTargetHumid(target_humidity.toString());
-
-          if (autoEnabled) {
-            setIsControlOn(true);
-          } else {
-            setIsControlOn(!!control);
-          }
-
-          setIsScheduleEnabled(!!schedule_enabled);
-          
-          // --- แก้ไข: รับค่า HH:MM โดยตรงแล้ว split ใส่ State ---
-          if (sched_start && sched_start.includes(":")) {
-             const [hh, mm] = sched_start.split(":");
-             setStartHour(hh);
-             setStartMin(mm);
-          }
-          if (sched_end && sched_end.includes(":")) {
-             const [hh, mm] = sched_end.split(":");
-             setStopHour(hh);
-             setStopMin(mm);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial state:", error);
-      }
-    };
-
-    fetchData();
-  }, []);
-
+  // Helper: Call API (ย้ายมาไว้นอก useEffect หรือใช้ useCallback เหมือนเดิม)
   const callApi = useCallback(async (payload: ControlPayload | any) => {
     setLoading(true);
     setApiMessage("");
@@ -95,10 +58,96 @@ export default function ControlPage() {
     }
   }, []);
 
-  // ------------------------------
-  // Actions
-  // ------------------------------
+  // -------------------------------------------------------------
+  // 🟢 ส่วนที่เพิ่มใหม่: Voice Listener (ทำงานหน้าบ้าน)
+  // -------------------------------------------------------------
+  useEffect(() => {
+    // อ้างอิงไปที่ node speech_latest/text
+    const speechRef = ref(db, 'speech_latest/text');
 
+    // onValue จะทำงานทุกครั้งที่ firebase มีการเปลี่ยนแปลง (Realtime)
+    const unsubscribe = onValue(speechRef, async (snapshot) => {
+      const text = snapshot.val();
+
+      // ถ้ามีข้อความเข้ามา
+      if (typeof text === 'string' && text.trim() !== "") {
+        const lowerText = text.toLowerCase();
+        let commandState: boolean | null = null;
+
+        if (lowerText.includes("open")) {
+          commandState = true;
+        } else if (lowerText.includes("close")) {
+          commandState = false;
+        }
+
+        // ถ้าเจอคำสั่ง Open/Close
+        if (commandState !== null) {
+          console.log(`🎤 Voice Detected: "${text}" -> Action: ${commandState}`);
+
+          // 1. เรียกฟังก์ชัน callApi เพื่อยิงไป Backend (route.ts)
+          // เพื่อให้ Backend จัดการ Logic การเปลี่ยนโหมด/บันทึกเวลา ให้เหมือนกดปุ่ม
+          await callApi({ 
+            type: "manual", 
+            control: commandState 
+          });
+
+          // 2. อัปเดตหน้าจอทันที (เพื่อให้รู้สึกลื่นไหล)
+          setIsControlOn(commandState);
+          setIsAutoMode(false);
+
+          // 3. ***สำคัญ*** ลบข้อความเสียงทิ้ง เพื่อไม่ให้ทำงานซ้ำ
+          // ใช้ set ของ firebase client โดยตรงเพื่อความไว
+          set(speechRef, ""); 
+        }
+      }
+    });
+
+    // Cleanup function เมื่อปิดหน้าเว็บ
+    return () => unsubscribe();
+  }, [callApi]); // dependency array
+
+  // -------------------------------------------------------------
+
+  // 1. ดึงข้อมูลเริ่มต้นจาก API (เหมือนเดิม)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch("/api/control");
+        const json = await res.json();
+        
+        if (json.ok && json.data) {
+          const { control, mode, sched_start, sched_end, target_humidity, schedule_enabled } = json.data;
+
+          const autoEnabled = mode === "auto";
+          setIsAutoMode(autoEnabled);
+          setTargetHumid(target_humidity.toString());
+
+          if (autoEnabled) {
+            setIsControlOn(true);
+          } else {
+            setIsControlOn(!!control);
+          }
+
+          setIsScheduleEnabled(!!schedule_enabled);
+          
+          if (sched_start && sched_start.includes(":")) {
+             const [hh, mm] = sched_start.split(":");
+             setStartHour(hh); setStartMin(mm);
+          }
+          if (sched_end && sched_end.includes(":")) {
+             const [hh, mm] = sched_end.split(":");
+             setStopHour(hh); setStopMin(mm);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch initial state:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Actions
   const handlePowerToggle = () => {
     const newState = !isControlOn; 
     const payload = { 
@@ -128,7 +177,6 @@ export default function ControlPage() {
     const nextState = !isScheduleEnabled;
     setIsScheduleEnabled(nextState);
 
-    // --- แก้ไข: ส่ง HH:MM string ตรงๆ ---
     const payload: SchedulePayload = {
         type: "schedule",
         enabled: nextState,
@@ -139,7 +187,6 @@ export default function ControlPage() {
   };
 
   const handleSaveSchedule = () => {
-    // --- แก้ไข: ส่ง HH:MM string ตรงๆ ---
     const payload: SchedulePayload = {
       type: "schedule",
       enabled: isScheduleEnabled, 
