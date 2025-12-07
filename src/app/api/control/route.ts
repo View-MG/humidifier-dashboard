@@ -1,45 +1,47 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/lib/firebase/firebaseAdmin";
-import type { ControlPayload } from "@/lib/types/control";
+
+// Helper Function: จัด Format เวลาให้เป็น HH:MM เสมอ
+const formatTime = (time: any) => {
+  if (!time || time === "0") return "00:00";
+  const str = String(time);
+  if (str.includes(":")) {
+    const parts = str.split(":");
+    return `${parts[0]}:${parts[1]}`;
+  }
+  return str;
+};
 
 export async function POST(req: NextRequest) {
   try {
-    const body: ControlPayload | any = await req.json();
+    const body: any = await req.json();
 
     // 1. Manual Control
     if (body.type === "manual") {
-      await db.ref("fan/control").update({
-        mode: "manual",
-        manual_state: body.fan_state, 
-        updated_at: Date.now(),
-      });
+      const newState = body.control; 
 
-      await db.ref("steam/control").update({
+      await db.ref("control").update({
         mode: "manual",
-        manual_state: body.steam_state,
+        manual_state: newState, 
         updated_at: Date.now(),
       });
       
-      const fanMsg = body.fan_state ? "ON" : "OFF";
-      const steamMsg = body.steam_state ? "ON" : "OFF";
-
-      return NextResponse.json({ 
-        ok: true, 
-        message: `Fan: ${fanMsg}, Steam: ${steamMsg}` 
-      });
+      const msg = newState ? "ON" : "OFF";
+      return NextResponse.json({ ok: true, message: `System Manual: ${msg}` });
     }
 
-    // 2. Mode Control (Auto/Off)
+    // 2. Mode Control
     if (body.type === "mode") {
-      await db.ref("fan/control").update({
+      const updateData: any = {
         mode: body.mode,
         updated_at: Date.now(),
-      });
+      };
 
-      await db.ref("steam/control").update({
-        mode: body.mode,
-        update_at: Date.now()
-      });
+      if (body.mode === "auto") {
+        updateData.manual_state = false;
+      }
+
+      await db.ref("control").update(updateData);
 
       if (body.mode === "auto") {
         const targetHumid = body.target_humidity ?? 0;
@@ -50,26 +52,23 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, message: `Mode Auto ON. Humidity set to ${targetHumid}%` });
       }
       
-      return NextResponse.json({ ok: true, message: `Mode Auto ${body.mode.toUpperCase()}` });
+      return NextResponse.json({ ok: true, message: `Mode set to ${body.mode.toUpperCase()}` });
     }
 
     // -------------------------------------------------------
-    // 3. Schedule Control (จุดที่แก้ไข)
+    // 3. Schedule Control (แก้ไขใหม่ตาม Requirement)
     // -------------------------------------------------------
     if (body.type === "schedule") {
-      // 3.1 บันทึกสถานะ Enable/Disable ไว้ที่ node แยก
-      await db.ref("schedule/enable").set(body.enabled);
+      
+      // บันทึกข้อมูลลง Node "schedule" ทั้งหมด (รวม enable, start_time, stop_time)
+      await db.ref("schedule").update({
+        enable: body.enabled,
+        start_time: formatTime(body.sched_start), // บันทึกเป็น start_time
+        stop_time: formatTime(body.sched_end),    // บันทึกเป็น stop_time
+        updated_at: Date.now()
+      });
 
-      // 3.2 บันทึกเวลาเริ่ม-จบ (แก้ไข: บันทึกเวลาตามที่ส่งมาเสมอ ไม่ต้องเช็ค enabled)
-      // เพื่อให้ Hardware อ่านค่าเวลาได้ตลอด และ UI ไม่รีเซ็ตค่าเป็น 0
-      const schedData = {
-        sched_start: body.sched_start ?? "0",
-        sched_end: body.sched_end ?? "0",
-        updated_at: Date.now(),
-      };
-
-      await db.ref("fan/control").update(schedData);
-      await db.ref("steam/control").update(schedData);
+      // หมายเหตุ: ไม่มีการ update ลง control node แล้ว
 
       return NextResponse.json({ 
         ok: true, 
@@ -87,24 +86,31 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
-    const fanControlSnap = await db.ref("fan/control").get(); 
-    const steamControlSnap = await db.ref("steam/control").get();
+    // ดึง node control (เพื่อดู state/mode)
+    const controlSnap = await db.ref("control").get(); 
+    // ดึง node humidity
     const humidControlSnap = await db.ref("humidity/control").get();
-    const scheduleEnableSnap = await db.ref("schedule/enable").get();
+    // ดึง node schedule (ดึงมาทั้งก้อน)
+    const scheduleSnap = await db.ref("schedule").get();
 
-    const fanData = fanControlSnap.val() || {};
-    const steamData = steamControlSnap.val() || {};
+    const controlData = controlSnap.val() || {};
     const humidData = humidControlSnap.val() || {};
-    const scheduleEnabled = scheduleEnableSnap.val(); 
+    const scheduleData = scheduleSnap.val() || {}; // ข้อมูล schedule ใหม่
+
+    const masterState = controlData.control_state ?? controlData.manual_state ?? false;
 
     const responseData = {
-      isFanOn: fanData.manual_state ?? false, 
-      isSteamOn: steamData.manual_state ?? false,
-      mode: fanData.mode ?? "off",
-      sched_start: fanData.sched_start ?? "0",
-      sched_end: fanData.sched_end ?? "0",
+      control: masterState, 
+      mode: controlData.mode ?? "off",
+      
+      // Map จาก start_time (DB) -> sched_start (Frontend Property)
+      sched_start: formatTime(scheduleData.start_time), 
+      sched_end: formatTime(scheduleData.stop_time),    
+      
       target_humidity: humidData.target_humidity ?? 60,
-      schedule_enabled: scheduleEnabled
+      
+      // อ่าน enable จาก node schedule โดยตรง
+      schedule_enabled: scheduleData.enable ?? false 
     };
 
     return NextResponse.json({ ok: true, data: responseData });

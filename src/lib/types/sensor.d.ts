@@ -1,6 +1,16 @@
 declare interface SensorData {
-  temp: number;
-  humidity: number;
-  water: number;
-  tilt: number;
+  env: {
+    temperature: number;
+    humidity: number;
+  };
+
+  water: {
+    percent: number;
+    raw: number;
+  };
+
+  tilt: {
+    state: number;
+    state_text: string;
+  };
 }
