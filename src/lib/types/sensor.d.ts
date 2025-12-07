@@ -1,4 +1,4 @@
-declare interface SensorData {
+export interface SensorData {
   env: {
     temperature: number;
     humidity: number;
@@ -14,3 +14,12 @@ declare interface SensorData {
     state_text: string;
   };
 }
+
+export interface SensorLogFilter {
+  timestamp?: {
+    $gte?: Date;
+    $lte?: Date;
+  };
+}
+
+export {};

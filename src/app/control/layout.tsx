@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Chakra_Petch } from "next/font/google";
 import { ChevronRight, X, Activity, Cpu } from "lucide-react";
-import SensorSidebar from '../../components/SensorSidebar';
+import SensorSidebar from '@/components/SensorSidebar';
 
 const chakra = Chakra_Petch({
   weight: ['300', '400', '500', '600', '700'],
