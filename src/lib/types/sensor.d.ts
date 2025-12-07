@@ -1,28 +1,16 @@
-// src/lib/types/sensor.d.ts
+declare interface SensorData {
+  env: {
+    temperature: number;
+    humidity: number;
+  };
 
-export interface TimestampFilter {
-  $gte?: Date;
-  $lte?: Date;
-}
+  water: {
+    percent: number;
+    raw: number;
+  };
 
-export interface SensorLogFilter {
-  // filter ด้วยเวลา
-  timestamp?: TimestampFilter;
-
-  // filter เพิ่มเติม (แล้วแต่คุณจะมีอะไรอีก)
-  nodeId?: number;
-}
-
-export interface SensorLogPayload {
-  nodeId: number;
-  waterRaw?: number;
-  waterPercent?: number;
-  isTilted?: boolean;
-  keyPress?: string | null;
-  fanStatus?: boolean;
-  steamStatus?: boolean;
-  temperature?: number;
-  humidity?: number;
-  source?: "sensor" | "gateway" | "simulator";
-  timestamp?: Date;
+  tilt: {
+    state: number;
+    state_text: string;
+  };
 }
