@@ -178,6 +178,7 @@ export default function ControlPage() {
   };
 
   const handleSaveSchedule = () => {
+    // --- แก้ไข: ส่ง HH:MM string ตรงๆ ---
     const payload: SchedulePayload = {
       type: "schedule",
       enabled: isScheduleEnabled,

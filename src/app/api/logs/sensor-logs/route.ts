@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/mongodb";
 import { buildSensorFilter } from "@/lib/helper/sensorFilter";
-import type { SensorLogPayload } from "@/lib/types/sensor";
+import type { SensorData } from "@/lib/types/sensor";
 import SensorLog from "@/models/SensorLog";
 
 export async function GET(req: NextRequest) {
@@ -10,14 +10,6 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
     const filter = buildSensorFilter(searchParams);
-
-    const nodeIdParam = searchParams.get("nodeId");
-    if (nodeIdParam) {
-      const nodeId = Number(nodeIdParam);
-      if (!Number.isNaN(nodeId)) {
-        filter.nodeId = nodeId;
-      }
-    }
 
     const logs = await SensorLog.find(filter).sort({ timestamp: -1 });
     return NextResponse.json(logs);
@@ -30,7 +22,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     await connectToDatabase();
-    const body = (await req.json()) as SensorLogPayload;
+    const body = (await req.json()) as SensorData;
 
     const log = await SensorLog.create(body);
     return NextResponse.json(log, { status: 201 });

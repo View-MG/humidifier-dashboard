@@ -2,6 +2,7 @@
 
 import SensorCard from "./SensorCard";
 import { Thermometer, Droplets, Battery, Compass, ToggleRight } from "lucide-react";
+import type { SensorData } from "@/lib/types/sensor";
 
 interface SensorInfoProps {
   data: SensorData;
