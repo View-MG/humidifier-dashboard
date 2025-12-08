@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Clock, RefreshCw, Power, Thermometer, Zap, Calendar } from "lucide-react";
+// เพิ่ม import Mic เข้ามา
+import { Clock, RefreshCw, Power, Thermometer, Zap, Calendar, Mic } from "lucide-react";
 // import database client
 import { ref, onValue, set } from "firebase/database";
 import { db } from "@/lib/firebase/firebaseClient";
@@ -22,6 +23,9 @@ export default function ControlPage() {
 
   const [isControlOn, setIsControlOn] = useState(false);
   const [isAutoMode, setIsAutoMode] = useState(false);
+
+  // 1. เพิ่ม State สำหรับเก็บข้อความเสียง
+  const [voiceText, setVoiceText] = useState("");
 
   const [targetHumid, setTargetHumid] = useState("60");
 
@@ -63,6 +67,10 @@ export default function ControlPage() {
     const speechRef = ref(db, 'speech_latest/text');
     const unsubscribe = onValue(speechRef, async (snapshot) => {
       const text = snapshot.val();
+      
+      // 2. อัปเดต State เพื่อแสดงข้อความ (ถ้า text เป็นค่าว่างก็ให้เคลียร์หน้าจอ)
+      setVoiceText(text || ""); 
+
       if (typeof text === 'string' && text.trim() !== "") {
         const lowerText = text.toLowerCase();
         let commandState: boolean | null = null;
@@ -81,7 +89,10 @@ export default function ControlPage() {
           });
           setIsControlOn(commandState);
           setIsAutoMode(false);
-          set(speechRef, "");
+          
+          // หมายเหตุ: การ set ค่าว่างกลับไปที่ DB จะทำให้ onValue ทำงานอีกรอบและเคลียร์ voiceText บนหน้าจอหายไป
+          // ถ้าอยากให้ข้อความค้างไว้นานกว่านี้ อาจจะต้องใช้ setTimeout ก่อน set ค่าว่างกลับไปที่ DB
+          set(speechRef, ""); 
         }
       }
     });
@@ -157,7 +168,6 @@ export default function ControlPage() {
     const nextState = !isScheduleEnabled;
     setIsScheduleEnabled(nextState);
 
-    // เมื่อกด Toggle ให้ยิง API ไปบันทึกสถานะใหม่ พร้อมกับเวลาปัจจุบันที่ตั้งไว้
     const payload: SchedulePayload = {
       type: "schedule",
       enabled: nextState,
@@ -179,12 +189,10 @@ export default function ControlPage() {
   };
 
   return (
-    // Background: Dark gradient with subtle tech vibes
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black text-gray-100 p-6 flex items-center justify-center font-sans">
       
       <div className="w-full max-w-lg relative">
         
-        {/* Decorative Background Glow */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none" />
 
         <div className="relative z-10 space-y-6">
@@ -201,6 +209,18 @@ export default function ControlPage() {
           <div className={`transition-all duration-500 overflow-hidden ${apiMessage ? "max-h-20 opacity-100" : "max-h-0 opacity-0"}`}>
             <div className="mx-auto w-fit px-6 py-2 rounded-full backdrop-blur-md bg-white/5 border border-white/10 text-sm font-medium shadow-[0_0_15px_rgba(255,255,255,0.1)]">
               {apiMessage}
+            </div>
+          </div>
+
+          {/* 3. ส่วนแสดง Voice Command */}
+          <div className={`transition-all duration-300 overflow-hidden ${voiceText ? "max-h-24 opacity-100 mb-4" : "max-h-0 opacity-0"}`}>
+            <div className="flex flex-col items-center justify-center gap-2">
+              <div className="animate-pulse bg-cyan-500/20 p-2 rounded-full border border-cyan-500/50">
+                 <Mic size={20} className="text-cyan-400" />
+              </div>
+              <p className="text-cyan-300 font-mono text-lg tracking-wide drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]">
+                "{voiceText}"
+              </p>
             </div>
           </div>
 
@@ -223,7 +243,6 @@ export default function ControlPage() {
                     : "bg-neutral-800/50 border-white/5 text-gray-500 hover:bg-neutral-800"
                 } ${isAutoMode ? "opacity-50 grayscale cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}`}
               >
-                 {/* Glowing Background for ON state */}
                  {isControlOn && <div className="absolute inset-0 bg-cyan-500/10 animate-pulse" />}
 
                 <Power className={`w-10 h-10 z-10 ${isControlOn ? "drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]" : ""}`} />
@@ -297,7 +316,6 @@ export default function ControlPage() {
               </div>
             </div>
 
-            {/* ส่วนที่แก้ไข: ลบ opacity และ pointer-events-none ออก เพื่อให้แก้ได้ตลอดเวลา */}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 {/* Start Time */}

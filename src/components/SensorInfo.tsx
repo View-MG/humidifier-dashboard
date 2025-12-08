@@ -32,10 +32,10 @@ export default function SensorInfo({ data }: SensorInfoProps) {
       />
 
       <SensorCard
-        title="Tilt Angle"
-        value={data.tilt.state ?? "--"}
+        title="Tilt State"
+        value={data.tilt.state_text ?? "--"}
         icon={<Compass className="w-7 h-7 text-blue-600" />}
-        unit="°"
+        unit=""
       />
       
     </div>

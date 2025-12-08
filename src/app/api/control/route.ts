@@ -92,9 +92,9 @@ export async function GET() {
       let targetState: boolean | null = null;
 
       // ตรวจสอบ Substring
-      if (lowerText.includes("open")) {
+      if (lowerText.includes("open") || lowerText.includes("start") || lowerText.includes("okay")) {
         targetState = true;
-      } else if (lowerText.includes("close")) {
+      } else if (lowerText.includes("close") || lowerText.includes("stop")) {
         targetState = false;
       }
 
