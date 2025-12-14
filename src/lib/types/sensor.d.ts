@@ -1,4 +1,4 @@
-export interface SensorData {
+declare interface SensorData {
   env: {
     temperature: number;
     humidity: number;
@@ -14,12 +14,3 @@ export interface SensorData {
     state_text: string;
   };
 }
-
-export interface SensorLogFilter {
-  timestamp?: {
-    $gte?: Date;
-    $lte?: Date;
-  };
-}
-
-export {};

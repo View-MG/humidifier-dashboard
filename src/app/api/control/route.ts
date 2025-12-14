@@ -55,20 +55,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, message: `Mode set to ${body.mode.toUpperCase()}` });
     }
 
-    // -------------------------------------------------------
-    // 3. Schedule Control (แก้ไขใหม่ตาม Requirement)
-    // -------------------------------------------------------
+    // 3. Schedule Control
     if (body.type === "schedule") {
-      
-      // บันทึกข้อมูลลง Node "schedule" ทั้งหมด (รวม enable, start_time, stop_time)
       await db.ref("schedule").update({
         enable: body.enabled,
-        start_time: formatTime(body.sched_start), // บันทึกเป็น start_time
-        stop_time: formatTime(body.sched_end),    // บันทึกเป็น stop_time
+        start_time: formatTime(body.sched_start),
+        stop_time: formatTime(body.sched_end),
         updated_at: Date.now()
       });
-
-      // หมายเหตุ: ไม่มีการ update ลง control node แล้ว
 
       return NextResponse.json({ 
         ok: true, 
@@ -86,16 +80,56 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
-    // ดึง node control (เพื่อดู state/mode)
+    // -------------------------------------------------------------
+    // ส่วนที่เพิ่ม: ตรวจสอบ Voice Command (Speech Text)
+    // -------------------------------------------------------------
+    const speechRef = db.ref("speech_latest/text");
+    const speechSnap = await speechRef.get();
+    const speechText = speechSnap.val();
+
+    if (typeof speechText === "string" && speechText.trim() !== "") {
+      const lowerText = speechText.toLowerCase();
+      let targetState: boolean | null = null;
+
+      // ตรวจสอบ Substring
+      if (lowerText.includes("open") || lowerText.includes("start") || lowerText.includes("okay")) {
+        targetState = true;
+      } else if (lowerText.includes("close") || lowerText.includes("stop")) {
+        targetState = false;
+      }
+
+      // ถ้าเจอคำสั่ง (open หรือ close)
+      if (targetState !== null) {
+        // 1. อัปเดตสถานะ Control
+        await db.ref("control").update({
+          mode: "manual",         // เปลี่ยนเป็น Manual ทันที
+          manual_state: targetState,
+          control_state: targetState,
+          updated_at: Date.now()
+        });
+
+        // 2. ***สำคัญ*** ลบข้อความเสียงทิ้ง (เพื่อไม่ให้มันทำงานซ้ำวนลูป)
+        await speechRef.set(""); 
+        
+        // Log สำหรับ Debug
+        console.log(`Voice Command Processed: "${speechText}" -> State: ${targetState}`);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // ดึงข้อมูลปกติ (หลังจาก Process Voice Command เสร็จแล้ว)
+    // -------------------------------------------------------------
+    
+    // ดึง node control
     const controlSnap = await db.ref("control").get(); 
     // ดึง node humidity
     const humidControlSnap = await db.ref("humidity/control").get();
-    // ดึง node schedule (ดึงมาทั้งก้อน)
+    // ดึง node schedule
     const scheduleSnap = await db.ref("schedule").get();
 
     const controlData = controlSnap.val() || {};
     const humidData = humidControlSnap.val() || {};
-    const scheduleData = scheduleSnap.val() || {}; // ข้อมูล schedule ใหม่
+    const scheduleData = scheduleSnap.val() || {}; 
 
     const masterState = controlData.control_state ?? controlData.manual_state ?? false;
 
@@ -103,13 +137,11 @@ export async function GET() {
       control: masterState, 
       mode: controlData.mode ?? "off",
       
-      // Map จาก start_time (DB) -> sched_start (Frontend Property)
       sched_start: formatTime(scheduleData.start_time), 
       sched_end: formatTime(scheduleData.stop_time),    
       
       target_humidity: humidData.target_humidity ?? 60,
       
-      // อ่าน enable จาก node schedule โดยตรง
       schedule_enabled: scheduleData.enable ?? false 
     };
 

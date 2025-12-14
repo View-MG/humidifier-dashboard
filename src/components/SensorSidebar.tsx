@@ -62,7 +62,7 @@ export default function SensorSidebar() {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">📡 ค่าสถานะปัจจุบัน</h2>
+      <h2 className="text-2xl font-bold text-gray-200 mb-6">📡 ค่าสถานะปัจจุบัน</h2>
       {/* ส่ง displayData ที่จัดการเรื่องค่าว่างแล้วเข้าไป */}
       <SensorInfo data={displayData} /> 
     </div>
